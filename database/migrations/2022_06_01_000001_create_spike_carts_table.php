@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Opcodes\Spike\BillableKeyType;
 
 /**
  * @package Spike
@@ -15,7 +16,7 @@ return new class extends Migration
         Schema::create('spike_carts', function (Blueprint $table) {
             $table->id();
 
-            $table->morphs('billable');
+            BillableKeyType::resolve()->morphs($table, 'billable'); // int, uuid or ulid: see spike.billable_key_type
             $table->string('promotion_code_id')->nullable();
 
             $table->timestamp('paid_at')->nullable();

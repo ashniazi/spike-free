@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Opcodes\Spike\BillableKeyType;
 
 /**
  * @package Spike
@@ -23,7 +24,7 @@ return new class extends Migration
 
         Schema::create('stripe_subscriptions', function (Blueprint $table) use ($billableForeignKey) {
             $table->bigIncrements('id');
-            $table->unsignedBigInteger($billableForeignKey);
+            BillableKeyType::resolve()->foreignKey($table, $billableForeignKey);
             $table->string('type');
             $table->string('stripe_id')->index();
             $table->string('stripe_status');

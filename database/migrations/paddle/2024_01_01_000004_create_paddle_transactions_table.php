@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Opcodes\Spike\BillableKeyType;
 
 return new class extends Migration
 {
@@ -13,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('paddle_transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('billable_id');
+            BillableKeyType::resolve()->foreignKey($table, 'billable_id');
             $table->string('billable_type');
             $table->string('paddle_id')->unique();
             $table->string('paddle_subscription_id')->nullable()->index();

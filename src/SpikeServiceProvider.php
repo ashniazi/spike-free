@@ -28,6 +28,7 @@ use Opcodes\Spike\Http\Livewire\AddPaymentMethodModal;
 use Opcodes\Spike\Http\Livewire\CheckoutModal;
 use Opcodes\Spike\Http\Livewire\CreditTransactions;
 use Opcodes\Spike\Http\Livewire\Invoices;
+use Opcodes\Spike\Http\Livewire\ModalContainer;
 use Opcodes\Spike\Http\Livewire\PaddlePaymentMethod;
 use Opcodes\Spike\Http\Livewire\PurchaseCredits;
 use Opcodes\Spike\Http\Livewire\StripePaymentMethods;
@@ -54,6 +55,36 @@ use Opcodes\Spike\View\Components\UsageChart;
 
 class SpikeServiceProvider extends ServiceProvider
 {
+    /**
+     * Spike's Livewire components by the name its views and the modal open them with.
+     *
+     * @var array<string, class-string<\Livewire\Component>>
+     */
+    public const LIVEWIRE_COMPONENTS = [
+        // Usage
+        'spike::credit-transactions' => CreditTransactions::class,
+
+        // Get credits
+        'spike::subscriptions' => Subscriptions::class,
+        'spike::purchase-credits' => PurchaseCredits::class,
+        'spike::validate-cart' => ValidateCart::class,
+
+        // Billing
+        'spike::stripe-payment-methods' => StripePaymentMethods::class,
+        'spike::paddle-payment-method' => PaddlePaymentMethod::class,
+        'spike::invoices' => Invoices::class,
+
+        // Modals
+        'spike::modal' => ModalContainer::class,
+        'spike::checkout' => CheckoutModal::class,
+        'spike::subscribe' => SubscribeModal::class,
+        'spike::add-payment-method' => AddPaymentMethodModal::class,
+
+        // Extra
+        'spike::update-payment-method-paddle' => UpdatePaymentMethodPaddle::class,
+        'spike::product-checkout-button-paddle' => PaddleCheckoutButton::class,
+    ];
+
     public static ?PaymentProvider $_cached_payment_provider;
 
     protected static bool $shouldRegisterVendorMigrations = false;
@@ -279,27 +310,14 @@ class SpikeServiceProvider extends ServiceProvider
         Blade::anonymousComponentNamespace('spike::components', 'spike');
 
         if (class_exists(Livewire::class)) {
-            // Usage
-            Livewire::component('spike::credit-transactions', CreditTransactions::class);
+            foreach (static::LIVEWIRE_COMPONENTS as $name => $class) {
+                Livewire::component($name, $class);
+            }
 
-            // Get credits
-            Livewire::component('spike::subscriptions', Subscriptions::class);
-            Livewire::component('spike::purchase-credits', PurchaseCredits::class);
-            Livewire::component('spike::validate-cart', ValidateCart::class);
-
-            // Billing
-            Livewire::component('spike::stripe-payment-methods', StripePaymentMethods::class);
-            Livewire::component('spike::paddle-payment-method', PaddlePaymentMethod::class);
-            Livewire::component('spike::invoices', Invoices::class);
-
-            // Modals
-            Livewire::component('spike::checkout', CheckoutModal::class);
-            Livewire::component('spike::subscribe', SubscribeModal::class);
-            Livewire::component('spike::add-payment-method', AddPaymentMethodModal::class);
-
-            // Extra
-            Livewire::component('spike::update-payment-method-paddle', UpdatePaymentMethodPaddle::class);
-            Livewire::component('spike::product-checkout-button-paddle', PaddleCheckoutButton::class);
+            // Livewire 4 reads the "spike::" prefix as a component namespace and only looks for it among
+            // registered class namespaces, never among the names registered above, so every Spike component
+            // would be "not found". Livewire asks its missing-component resolvers before giving up.
+            Livewire::resolveMissingComponent(fn (string $name): ?string => static::LIVEWIRE_COMPONENTS[$name] ?? null);
         }
     }
 

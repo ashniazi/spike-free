@@ -90,6 +90,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Billable key type
+    |--------------------------------------------------------------------------
+    |
+    | The key type Spike's migrations use for every column pointing at a
+    | billable: 'int', 'uuid' or 'ulid'. Leave it null to follow the first
+    | billable model (HasUuids is uuid, HasUlids is ulid, otherwise int).
+    |
+    */
+
+    'billable_key_type' => env('SPIKE_BILLABLE_KEY_TYPE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Credit types
     |--------------------------------------------------------------------------
     |

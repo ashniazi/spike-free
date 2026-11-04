@@ -1,14 +1,28 @@
 <?php
 
-use Asantibanez\LivewireCharts\Models\ColumnChartModel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Collection;
 use Illuminate\Contracts\View\View;
 use Opcodes\Spike\Facades\Spike;
 use Opcodes\Spike\View\Components\UsageChart;
 use function Spatie\PestPluginTestTime\testTime;
 
 uses(RefreshDatabase::class);
+
+/**
+ * The credits a series shows on a date, read from the ApexCharts options the way the chart reads them:
+ * a series' data lines up with the x-axis categories by index.
+ */
+function usageOn(array $options, string $seriesName, string $date): int|float|null
+{
+    $series = collect($options['series'])->firstWhere('name', $seriesName);
+    $index = array_search($date, $options['xaxis']['categories'], true);
+
+    if ($series === null || $index === false) {
+        return null;
+    }
+
+    return $series['data'][$index] ?? null;
+}
 
 beforeEach(function () {
     $this->user = createBillable();
@@ -19,7 +33,7 @@ test('usage view contains no usage by default', closure: function () {
     tap((new UsageChart())->render(), function (View $view) {
         $view->assertViewIs('spike::components.usage-chart');
         $view->assertViewHas('hasUsage', false);
-        $view->assertViewHas('dailyUsageChartModel', null);
+        $view->assertViewHas('dailyUsageChartOptions', null);
     });
 });
 
@@ -33,18 +47,9 @@ test('usage view contains daily usage data', function () {
 
     tap((new UsageChart())->render(), function (View $view) use ($firstDay, $secondDay) {
         $view->assertViewHas('hasUsage', true)
-            ->assertViewHas('dailyUsageChartModel', function (ColumnChartModel $model) use ($firstDay, $secondDay) {
-                /** @var Collection $modelData */
-                $modelData = (fn() => $this->data)->call($model);
-
-                return $modelData->get('credits')->contains(function (array $item) use ($firstDay) {
-                        return $item['title'] === $firstDay->toDateString()
-                            && $item['value'] === 50;
-                    })
-                    && $modelData->get('credits')->contains(function (array $item) use ($secondDay) {
-                        return $item['title'] === $secondDay->toDateString()
-                            && $item['value'] === 100;
-                    });
+            ->assertViewHas('dailyUsageChartOptions', function (array $options) use ($firstDay, $secondDay) {
+                return usageOn($options, 'credits', $firstDay->toDateString()) === 50
+                    && usageOn($options, 'credits', $secondDay->toDateString()) === 100;
             });
     });
 });
@@ -58,14 +63,8 @@ test('usage view groups multiple usages on the same day', function () {
 
     tap((new UsageChart())->render(), function (View $view) {
         $view->assertViewHas('hasUsage', true)
-            ->assertViewHas('dailyUsageChartModel', function (ColumnChartModel $model) {
-                /** @var Collection $modelData */
-                $modelData = (fn() => $this->data)->call($model);
-
-                return $modelData->get('credits')->contains(function (array $item) {
-                        return $item['title'] === now()->toDateString()
-                            && $item['value'] === 160;
-                    });
+            ->assertViewHas('dailyUsageChartOptions', function (array $options) {
+                return usageOn($options, 'credits', now()->toDateString()) === 160;
             });
     });
 });
@@ -79,18 +78,25 @@ test('usage view can show multiple types of credits', function () {
 
     tap((new UsageChart())->render(), function (View $view) {
         $view->assertViewHas('hasUsage', true)
-            ->assertViewHas('dailyUsageChartModel', function (ColumnChartModel $model) {
-                /** @var Collection $modelData */
-                $modelData = (fn() => $this->data)->call($model);
-
-                return $modelData->get('credits')->contains(function (array $item) {
-                        return $item['title'] === now()->toDateString()
-                            && $item['value'] === 100;
-                    })
-                    && $modelData->get('sms')->contains(function (array $item) {
-                        return $item['title'] === now()->toDateString()
-                            && $item['value'] === 80;
-                    });
+            ->assertViewHas('dailyUsageChartOptions', function (array $options) {
+                return usageOn($options, 'credits', now()->toDateString()) === 100
+                    && usageOn($options, 'sms', now()->toDateString()) === 80
+                    && $options['chart']['stacked'] === true
+                    && $options['legend']['show'] === true;
             });
+    });
+});
+
+test('a single credit type is not stacked and has no legend', function () {
+    $this->user->credits()->add(500);
+    $this->user->credits()->spend(100);
+
+    tap((new UsageChart())->render(), function (View $view) {
+        $view->assertViewHas('dailyUsageChartOptions', function (array $options) {
+            return $options['chart']['stacked'] === false
+                && $options['legend']['show'] === false
+                && $options['xaxis']['type'] === 'datetime'
+                && $options['yaxis']['show'] === false;
+        });
     });
 });

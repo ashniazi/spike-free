@@ -78,8 +78,9 @@
     </div>
 
 @livewireScripts
-@livewire('livewire-ui-modal')
-@livewireChartsScripts
+@livewire('spike::modal')
+<script src="{{ asset('vendor/spike/apexcharts.min.js') }}" data-navigate-once></script>
+<script src="{{ asset('vendor/spike/usage-chart.js') }}" data-navigate-once></script>
 @stack('scripts')
 </body>
 </html>

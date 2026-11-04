@@ -78,11 +78,10 @@ class Subscriptions extends Component
             return app(StripeCheckoutRedirectWithLock::class)->handle($plan);
         }
 
-        return $this->dispatch(
-            'openModal',
-            component: 'spike::subscribe',
-            arguments: ['price_id' => $price_id]
-        );
+        // Positional, not `component:`/`arguments:` named parameters: Livewire 4 reads a `component` parameter as
+        // the event's target, which sent openModal to "spike::subscribe" instead of the modal container, so the
+        // Switch/Unsubscribe buttons did nothing. The modal's openModal($component, $arguments) gets them in order.
+        return $this->dispatch('openModal', 'spike::subscribe', ['price_id' => $price_id]);
     }
 
     public function unsubscribe()

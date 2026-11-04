@@ -2,7 +2,6 @@
 
 namespace Opcodes\Spike\Tests;
 
-use Asantibanez\LivewireCharts\LivewireChartsServiceProvider;
 use LivewireUI\Modal\LivewireModalServiceProvider;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Laravel\Cashier\Cashier;
@@ -39,7 +38,6 @@ class TestCase extends Orchestra
         return [
             LivewireServiceProvider::class,
             LivewireModalServiceProvider::class,
-            LivewireChartsServiceProvider::class,
             CashierServiceProvider::class,
             SpikeServiceProvider::class,
         ];

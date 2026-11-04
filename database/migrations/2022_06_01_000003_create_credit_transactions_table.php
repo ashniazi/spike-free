@@ -4,6 +4,7 @@ use Opcodes\Spike\CreditTransaction;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Opcodes\Spike\BillableKeyType;
 
 /**
  * @package Spike
@@ -16,7 +17,7 @@ return new class extends Migration
         Schema::create('spike_credit_transactions', function (Blueprint $table) {
             $table->id();
 
-            $table->morphs('billable');
+            BillableKeyType::resolve()->morphs($table, 'billable'); // int, uuid or ulid: see spike.billable_key_type
             $table->string('type')->default(CreditTransaction::TYPE_ADJUSTMENT);
             $table->bigInteger('credits');
             $table->foreignId('cart_id')->nullable();

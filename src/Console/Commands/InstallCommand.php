@@ -68,7 +68,6 @@ class InstallCommand extends Command
         $this->call('vendor:publish', ['--tag' => 'cashier-config']);
         $this->call('vendor:publish', ['--tag' => 'spike-config']);
         $this->call('vendor:publish', ['--tag' => 'spike-migrations']);
-        $this->call('vendor:publish', ['--tag' => 'livewire-charts:public']);
 
         if ($supportTeams) {
             $this->line('You have selected the <options=bold,underscore>Teams</> option. We will now adjust migrations and configuration to support teams.');

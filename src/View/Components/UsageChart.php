@@ -2,7 +2,6 @@
 
 namespace Opcodes\Spike\View\Components;
 
-use Asantibanez\LivewireCharts\Facades\LivewireCharts;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -20,11 +19,19 @@ class UsageChart extends Component
 
         return view('spike::components.usage-chart', [
             'hasUsage' => $hasUsage,
-            'dailyUsageChartModel' => $hasUsage ? $this->getDailyUsageChartModel() : null,
+            'dailyUsageChartOptions' => $hasUsage ? $this->getDailyUsageChartOptions() : null,
         ]);
     }
 
-    protected function getDailyUsageChartModel()
+    /**
+     * The finished ApexCharts options for the daily usage chart.
+     *
+     * This used to go through arukompas/livewire-charts, a Livewire component that only ever drew this one static
+     * chart and pinned Spike to Livewire 3. The options are now built here exactly as that package built them: its
+     * model defaults, the mapping in its multiColumnChart.js, and its deepmerge of the JSON config (lists are
+     * concatenated, objects merged). The chart is drawn by ApexCharts 3.41.0, the same build it bundled.
+     */
+    protected function getDailyUsageChartOptions(): array
     {
         $colors = [
             config('spike.theme.color'),
@@ -39,35 +46,28 @@ class UsageChart extends Component
             '#4BC0C0',
         ];
 
-        $columnChartModel = LivewireCharts::columnChartModel()
-            ->multiColumn()
-            ->setColors($colors)
-            ->setTitle(__('spike::translations.daily_credit_usage'));
-
         $creditUsageGroupedByType = $this->creditUsageGrouped();
         $defaultJsonConfig = $this->defaultChartJsonConfig();
+        $isStacked = $creditUsageGroupedByType->count() > 1;
 
-        if ($creditUsageGroupedByType->count() > 1) {
-            $columnChartModel = $columnChartModel
-                ->stacked()
-                ->legendPositionBottom()
-                ->setJsonConfig(array_merge($defaultJsonConfig, [
-                    'legend' => [
-                        'offsetY' => 5,
+        if ($isStacked) {
+            $jsonConfig = array_merge($defaultJsonConfig, [
+                'legend' => [
+                    'offsetY' => 5,
+                ],
+                'grid' => [
+                    'padding' => [
+                        'bottom' => 10,
+                        'top' => -30,
                     ],
-                    'grid' => [
-                        'padding' => [
-                            'bottom' => 10,
-                            'top' => -30,
-                        ],
-                    ],
-                ]));
+                ],
+            ]);
         } else {
-            $columnChartModel = $columnChartModel->withoutLegend()
-                ->setJsonConfig(array_merge($defaultJsonConfig, [
-                    //
-                ]));
+            $jsonConfig = $defaultJsonConfig;
         }
+
+        /** @var array<string, array<int, array{title: string, value: int|float}>> $seriesColumns */
+        $seriesColumns = [];
 
         foreach ($creditUsageGroupedByType as $type => $creditUsageGrouped) {
             $creditType = CreditType::make($type);
@@ -78,17 +78,104 @@ class UsageChart extends Component
                 /** @var Collection $creditUsageGrouped */
                 $creditsUsed = $creditUsageGrouped->get($currentDay->toDateString());
 
-                $columnChartModel->addSeriesColumn(
-                    $creditType->name(),
-                    $currentDay->toDateString(),
-                    $creditsUsed ?? 0,
-                );
+                $seriesColumns[$creditType->name()][] = [
+                    'title' => $currentDay->toDateString(),
+                    'value' => $creditsUsed ?? 0,
+                ];
 
                 $currentDay = $currentDay->addDay();
             }
         }
 
-        return $columnChartModel;
+        $series = [];
+
+        foreach ($seriesColumns as $seriesName => $columns) {
+            $series[] = [
+                'name' => $seriesName,
+                'data' => array_column($columns, 'value'),
+            ];
+        }
+
+        $options = [
+            'series' => $series,
+            'chart' => [
+                'type' => 'bar',
+                'height' => '100%',
+                'stacked' => $isStacked,
+                'sparkline' => ['enabled' => false],
+                'toolbar' => ['show' => false],
+                'animations' => ['enabled' => false],
+            ],
+            'legend' => [
+                'show' => $isStacked,
+                'position' => 'bottom',
+                'horizontalAlign' => 'center',
+            ],
+            'grid' => [
+                'show' => false,
+                'position' => 'back',
+                'xaxis' => ['lines' => ['show' => true]],
+                'yaxis' => ['lines' => ['show' => true]],
+            ],
+            'plotOptions' => [
+                'bar' => [
+                    'horizontal' => false,
+                    'columnWidth' => '70%',
+                ],
+            ],
+            'dataLabels' => ['enabled' => false],
+            'xaxis' => [
+                'categories' => array_column(reset($seriesColumns) ?: [], 'title'),
+            ],
+            'yaxis' => [
+                'title' => ['text' => __('spike::translations.daily_credit_usage')],
+            ],
+            'fill' => ['opacity' => 0.75],
+            'theme' => ['mode' => 'light', 'palette' => 'palette1'],
+            'colors' => $colors,
+        ];
+
+        return $this->deepMerge($options, $jsonConfig);
+    }
+
+    /**
+     * A port of npm `deepmerge` 2.2.1, the build livewire-charts bundled to apply the JSON config. A list and an
+     * object never merge (the source wins). Objects merge key by key, and the source replaces any target value
+     * that is missing or falsy. Lists merge index by index: a missing index takes the source item, an array item
+     * merges into the target item, and a scalar the target list does not already contain is appended.
+     */
+    protected function deepMerge(array $target, array $source): array
+    {
+        if (array_is_list($target) !== array_is_list($source)) {
+            return $source;
+        }
+
+        if (array_is_list($source)) {
+            $destination = $target;
+
+            foreach ($source as $index => $item) {
+                if (! array_key_exists($index, $destination)) {
+                    $destination[$index] = $item;
+                } elseif (is_array($item)) {
+                    $destination[$index] = is_array($target[$index]) ? $this->deepMerge($target[$index], $item) : $item;
+                } elseif (! in_array($item, $target, true)) {
+                    $destination[] = $item;
+                }
+            }
+
+            return $destination;
+        }
+
+        foreach ($source as $key => $value) {
+            $targetValue = $target[$key] ?? null;
+            $targetIsFalsy = ! is_array($targetValue) && ! $targetValue;
+
+            $target[$key] = ! is_array($value) || $targetIsFalsy
+                ? $value
+                : $this->deepMerge($targetValue, $value);
+        }
+
+        return $target;
     }
 
     protected function creditUsageGrouped(): Collection
